@@ -171,56 +171,83 @@ int openKeyboardInput() {
 	return fd;	
 }
 
-void handleKeyboardInput(int fd) {
-	std::vector<char> buffer;
+char getKeyboardInput(int fd) {
+	char input = '\0';
 	struct input_event ev;
 	ssize_t n;
 
-	auto lastTime = std::chrono::steady_clock::now();
-
-	while (true) {
-		n = read(fd, &ev, sizeof ev);
-		if (n == (ssize_t)-1) {
-			if (errno == EINTR)
-				continue;
-			else
-				break;
-		} else {
-			if (n != sizeof ev) {
-				errno = EIO;
-				break;
-			}
-		}
-	
-		// Handle input - ev.value 1 == pressed down & 2 == held down
-		if (ev.type == EV_KEY && ev.value == 1) {
-			char input = keycodeToChar(ev.code);
-
-			buffer.push_back(input);
-			std::cout << "\r";
-			for(char c : buffer) {
-				std::cout << c;
-			}
-			std::cout << std::flush;
-
-			if(input == '\n') buffer.clear();
+	n = read(fd, &ev, sizeof ev);
+	if (n == (ssize_t)-1) {
+		return input;
+	}
+	else {
+		if (n != sizeof ev) {
+			errno = EIO;
+			return input;
 		}
 	}
+	
+	// Handle input - ev.value 1 == pressed down & 2 == held down
+	if (ev.type == EV_KEY && ev.value == 1) {
+		input = keycodeToChar(ev.code);
+	}
+
+	return input;
+}
+
+void handleAutocomplete(Trie* trie, std::vector<char>& wordBuffer) {
+	std::vector<char> match = trie->findWithPrefix(wordBuffer, 1).at(0);
+
+	int i = 0;
+	for(; i < wordBuffer.size(); i++) {
+		//std::cout << wordBuffer.at(i);
+	}
+	std::cout << '['; // Indicates start of suggested word
+	
+	for(; i < match.size(); i++) {
+		//std::cout << wordBuffer.at(i);
+	}
+	std::cout << ']'; // Indicates end of suggested word
+}
+
+void handleOutput(Trie* trie, char input, std::vector<char>& lineBuffer, std::vector<char>& wordBuffer) {
+	// TODO:: Change this to if it isn't an alphabetic value
+	if(input == ' ') {
+		lineBuffer.insert(lineBuffer.end(), wordBuffer.begin(), wordBuffer.end());
+		wordBuffer.clear();
+	}
+
+	wordBuffer.push_back(input);
+	std::cout << "\r";
+	for(char c : lineBuffer) {
+		std::cout << c;
+	}
+
+	handleAutocomplete(trie, wordBuffer);	
+
+	if(input == '\n') {
+		wordBuffer.clear();
+		lineBuffer.clear();
+	}
+
 }
 
 int main() {
 	// Initialization
-	disableEcho();
-	Trie* root = new Trie();
+	std::vector<char> lineBuffer;
+	std::vector<char> wordBuffer;
 	int fd = openKeyboardInput();
+	disableEcho();
+
+	Trie* root = new Trie();
+	buildPathsInDir(root, "/home/mallen/autocomplete-engine/dictionary");
 
 	// Testing functions
-	/*
-	handleKeyboardInput(fd);
-	buildPathsInDir(root, "/home/mallen/autocomplete-engine/dictionary");
-	std::string test = "the";
-	std::cout << root->getFrequency(std::vector<char>(test.begin(), test.end())) << "\n";
-	*/
+	// TODO: Update to have exit condition
+	while(true) {
+		char input = getKeyboardInput(fd);
+		if(input != '\0') handleOutput(root, input, lineBuffer, wordBuffer);
+	}
 
 	// Cleanup
 	enableEcho();
