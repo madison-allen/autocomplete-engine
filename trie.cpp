@@ -135,6 +135,8 @@ void Trie::initializeChar(Trie& trie, char c, bool w) {
 }
 
 Trie* Trie::findNode(std::vector<char> word) {
+	if(word.size() == 0) return nullptr;
+
 	Trie* trie = this;
 	for(char c : word) {
 		if(trie->children == nullptr) return nullptr;

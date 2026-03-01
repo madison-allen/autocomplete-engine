@@ -16,6 +16,11 @@
 #include <chrono>
 #include <termios.h>
 
+template <class T>
+void output(T s) {
+	std::cout << s << std::flush;
+}
+
 void disableEcho() {
     struct termios t;
 
@@ -196,33 +201,37 @@ char getKeyboardInput(int fd) {
 }
 
 void handleAutocomplete(Trie* trie, std::vector<char>& wordBuffer) {
-	std::vector<char> match = trie->findWithPrefix(wordBuffer, 1).at(0);
+	std::vector<std::vector<char>> matches = trie->findWithPrefix(wordBuffer, 1);
 
-	int i = 0;
-	for(; i < wordBuffer.size(); i++) {
-		//std::cout << wordBuffer.at(i);
+	// Return if there is no match or if the match isn't longer than the current word
+	if(matches.size() == 0 || matches.at(0).size() <= wordBuffer.size()) return;
+	std::vector<char> match = matches.at(0);
+
+	output('['); // Indicates start of suggested word
+	for(int i = wordBuffer.size(); i < match.size(); i++) {
+		output(match.at(i));
 	}
-	std::cout << '['; // Indicates start of suggested word
-	
-	for(; i < match.size(); i++) {
-		//std::cout << wordBuffer.at(i);
-	}
-	std::cout << ']'; // Indicates end of suggested word
+	output(']'); // Indicates end of suggested word
 }
 
 void handleOutput(Trie* trie, char input, std::vector<char>& lineBuffer, std::vector<char>& wordBuffer) {
+	wordBuffer.push_back(input);
+
 	// TODO:: Change this to if it isn't an alphabetic value
 	if(input == ' ') {
 		lineBuffer.insert(lineBuffer.end(), wordBuffer.begin(), wordBuffer.end());
 		wordBuffer.clear();
 	}
 
-	wordBuffer.push_back(input);
-	std::cout << "\r";
+	output("\x1b[2K"); // ANSI escape code to clear the current line before carriage return
+	output("\r");
 	for(char c : lineBuffer) {
-		std::cout << c;
+		output(c);
 	}
 
+	for(char c : wordBuffer) {
+		output(c);
+	}
 	handleAutocomplete(trie, wordBuffer);	
 
 	if(input == '\n') {
@@ -244,6 +253,7 @@ int main() {
 
 	// Testing functions
 	// TODO: Update to have exit condition
+	output("Entering input processing\n");
 	while(true) {
 		char input = getKeyboardInput(fd);
 		if(input != '\0') handleOutput(root, input, lineBuffer, wordBuffer);
